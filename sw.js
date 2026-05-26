@@ -1,26 +1,13 @@
-const CACHE_NAME = 'rotaleitura-v13001';
+const CACHE_NAME = 'rotaleitura-v13002';
 
 const urlsToCache = [
 
-  '/RotaLeitura/',
-  '/RotaLeitura/index.html',
-  '/RotaLeitura/manifest.json',
-  '/RotaLeitura/indexes.json',
+  '/RotaLeiturav2/',
+  '/RotaLeiturav2/index.html',
+  '/RotaLeiturav2/manifest.json',
 
-  '/RotaLeitura/171_1.json',
-  '/RotaLeitura/171_2.json',
-
-  '/RotaLeitura/172.json',
-
-  '/RotaLeitura/173_1.json',
-  '/RotaLeitura/173_2.json',
-
-  '/RotaLeitura/174.json',
-  '/RotaLeitura/175.json',
-  '/RotaLeitura/176.json',
-
-  '/RotaLeitura/launchericon-192x192.png',
-  '/RotaLeitura/launchericon-512x512.png'
+  '/RotaLeiturav2/launchericon-192x192.png',
+  '/RotaLeiturav2/launchericon-512x512.png'
 
 ];
 
@@ -70,54 +57,6 @@ self.addEventListener('activate', event => {
 });
 
 self.addEventListener('fetch', event => {
-
-  const url = event.request.url;
-
-  if(
-
-    url.includes('firebase') ||
-    url.includes('googleapis')
-
-  ){
-
-    event.respondWith(fetch(event.request));
-    return;
-
-  }
-
-  if(
-    url.includes('tile.openstreetmap.org')
-  ){
-
-    event.respondWith(
-
-      caches.match(event.request)
-        .then(response => {
-
-          return response || fetch(event.request)
-            .then(networkResponse => {
-
-              caches.open(CACHE_NAME)
-                .then(cache => {
-
-                  cache.put(
-                    event.request,
-                    networkResponse.clone()
-                  );
-
-                });
-
-              return networkResponse;
-
-            });
-
-        })
-
-    );
-
-    return;
-
-  }
 
   event.respondWith(
 
