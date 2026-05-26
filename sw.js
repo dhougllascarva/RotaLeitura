@@ -1,4 +1,4 @@
-const CACHE_NAME = 'tellus-v12002';
+const CACHE_NAME = 'rotaleitura-v13000';
 
 const urlsToCache = [
 
@@ -49,7 +49,6 @@ self.addEventListener('install', event => {
 
 // ======================================
 // ACTIVATE
-// LIMPAR CACHES ANTIGOS
 // ======================================
 
 self.addEventListener('activate', event => {
@@ -89,11 +88,6 @@ self.addEventListener('fetch', event => {
 
   const url = event.request.url;
 
-
-  // ==================================
-  // NÃO CACHEAR FIREBASE
-  // ==================================
-
   if(
 
     url.includes('firebase') ||
@@ -105,11 +99,6 @@ self.addEventListener('fetch', event => {
     return;
 
   }
-
-
-  // ==================================
-  // MAPAS OPENSTREETMAP
-  // ==================================
 
   if(
     url.includes('tile.openstreetmap.org')
@@ -144,11 +133,6 @@ self.addEventListener('fetch', event => {
     return;
 
   }
-
-
-  // ==================================
-  // CACHE NORMAL
-  // ==================================
 
   event.respondWith(
 
