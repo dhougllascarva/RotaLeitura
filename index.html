@@ -30,9 +30,50 @@ name="apple-mobile-web-app-title"
 content="RotaLeitura"
 >
 
+<!-- FAVICON / MINIATURA DO CHROME -->
+<link
+rel="icon"
+type="image/png"
+sizes="48x48"
+href="launchericon-48x48.png"
+>
+
+<link
+rel="icon"
+type="image/png"
+sizes="72x72"
+href="launchericon-72x72.png"
+>
+
+<link
+rel="icon"
+type="image/png"
+sizes="96x96"
+href="launchericon-96x96.png"
+>
+
+<link
+rel="icon"
+type="image/png"
+sizes="144x144"
+href="launchericon-144x144.png"
+>
+
+<link
+rel="icon"
+type="image/png"
+sizes="192x192"
+href="launchericon-192x192.png"
+>
+
 <link
 rel="apple-touch-icon"
 href="launchericon-192x192.png"
+>
+
+<link
+rel="shortcut icon"
+href="launchericon-48x48.png"
 >
 
 <link
@@ -425,7 +466,9 @@ async function(){
 
 let permissoes = [];
 
-let banco = [];
+let bancoBusca = [];
+let bancoMapa = [];
+
 let indexes = {};
 let map = null;
 
@@ -455,59 +498,79 @@ async user => {
 
   }
 
-  let ref =
-    doc(db,'usuarios',user.email);
+  try{
 
-  let snap =
-    await getDoc(ref);
+    let ref =
+      doc(db,'usuarios',user.email);
 
-  if(!snap.exists()){
+    let snap =
+      await getDoc(ref);
 
-    alert('Sem permissão');
+    if(!snap.exists()){
 
-    logout();
+      alert('Sem permissão');
 
-    return;
+      logout();
+
+      return;
+
+    }
+
+    let dados =
+      snap.data();
+
+    if(!dados.ativo){
+
+      alert('Usuário desativado');
+
+      logout();
+
+      return;
+
+    }
+
+    permissoes =
+      dados.areas || [];
+
+    document
+      .getElementById('loginTela')
+      .classList.add('oculto');
+
+    document
+      .getElementById('appTela')
+      .classList.remove('oculto');
+
+    carregarSistema();
+
+  }catch(e){
+
+    console.error(e);
+
+    alert('Erro ao carregar usuário');
 
   }
-
-  let dados =
-    snap.data();
-
-  if(!dados.ativo){
-
-    alert('Usuário desativado');
-
-    logout();
-
-    return;
-
-  }
-
-  permissoes =
-    dados.areas;
-
-  document
-    .getElementById('loginTela')
-    .classList.add('oculto');
-
-  document
-    .getElementById('appTela')
-    .classList.remove('oculto');
-
-  carregarSistema();
 
 });
 
 async function carregarSistema(){
 
-  let response =
-    await fetch('./indexes.json');
+  try{
 
-  indexes =
-    await response.json();
+    let response =
+      await fetch('./indexes.json');
 
-  popularAreas();
+    indexes =
+      await response.json();
+
+    popularAreas();
+
+  }catch(e){
+
+    console.error(e);
+
+    alert('Erro ao carregar indexes.json');
+
+  }
 
 }
 
@@ -550,14 +613,6 @@ ${area} - ${AREAS[area]}
 
     carregarArea();
     carregarAreaMapa();
-
-  }else{
-
-    document.getElementById('area')
-      .style.display = 'block';
-
-    document.getElementById('areaMapa')
-      .style.display = 'block';
 
   }
 
@@ -618,65 +673,81 @@ function(tipo){
 
 document
 .getElementById('area')
-.addEventListener('change',
-carregarArea);
+.addEventListener(
+'change',
+carregarArea
+);
 
 async function carregarArea(){
 
   let area =
     document.getElementById('area').value;
 
-  banco = [];
+  bancoBusca = [];
 
-  let arquivos =
-    indexes[area];
+  try{
 
-  for(let arquivo of arquivos){
+    let arquivos =
+      indexes[area] || [];
 
-    let response =
-      await fetch('./' + arquivo);
+    for(let arquivo of arquivos){
 
-    let parte =
-      await response.json();
+      let response =
+        await fetch('./' + arquivo);
 
-    banco =
-      banco.concat(parte);
+      let parte =
+        await response.json();
+
+      bancoBusca =
+        bancoBusca.concat(parte);
+
+    }
+
+    let mrus = [
+
+      ...new Set(
+        bancoBusca.map(i => i[0])
+      )
+
+    ];
+
+    mrus.sort();
+
+    let lista =
+      document.getElementById('listaMRUs');
+
+    lista.innerHTML = '';
+
+    mrus.forEach(mru => {
+
+      lista.innerHTML +=
+        `<option value="${mru}">`;
+
+    });
+
+  }catch(e){
+
+    console.error(e);
+
+    alert('Erro ao carregar área');
 
   }
-
-  let mrus = [
-
-    ...new Set(
-      banco.map(i => i[0])
-    )
-
-  ];
-
-  mrus.sort();
-
-  let lista =
-    document.getElementById('listaMRUs');
-
-  lista.innerHTML = '';
-
-  mrus.forEach(mru => {
-
-    lista.innerHTML +=
-      `<option value="${mru}">`;
-
-  });
 
 }
 
 document
 .getElementById('mru')
-.addEventListener('input',
-pesquisar);
+.addEventListener(
+'input',
+pesquisar
+);
 
 document
 .getElementById('busca')
-.addEventListener('input',
-pesquisar);
+.addEventListener(
+'input',
+pesquisar
+);
 
 function pesquisar(){
 
@@ -698,13 +769,12 @@ function pesquisar(){
     texto.replace(/\s+/g,' ');
 
   let resultados =
-    banco.filter(item => {
+    bancoBusca.filter(item => {
 
       let okMru =
         !mru ||
-        item[0]
+        String(item[0])
         .toLowerCase()
-        .trim()
         .includes(mru);
 
       let pesquisa = (
@@ -716,7 +786,6 @@ function pesquisar(){
       )
 
       .toLowerCase()
-      .trim()
       .replace(/\s+/g,' ');
 
       let okTexto =
@@ -789,46 +858,55 @@ async function carregarAreaMapa(){
   let area =
     document.getElementById('areaMapa').value;
 
-  banco = [];
+  bancoMapa = [];
 
-  let arquivos =
-    indexes[area];
+  try{
 
-  for(let arquivo of arquivos){
+    let arquivos =
+      indexes[area] || [];
 
-    let response =
-      await fetch('./' + arquivo);
+    for(let arquivo of arquivos){
 
-    let parte =
-      await response.json();
+      let response =
+        await fetch('./' + arquivo);
 
-    banco =
-      banco.concat(parte);
+      let parte =
+        await response.json();
+
+      bancoMapa =
+        bancoMapa.concat(parte);
+
+    }
+
+    let mrus = [
+
+      ...new Set(
+        bancoMapa.map(i => i[0])
+      )
+
+    ];
+
+    mrus.sort();
+
+    let lista =
+      document.getElementById('listaMRUsMapa');
+
+    lista.innerHTML = '';
+
+    mrus.forEach(mru => {
+
+      lista.innerHTML +=
+        `<option value="${mru}">`;
+
+    });
+
+  }catch(e){
+
+    console.error(e);
+
+    alert('Erro ao carregar mapa');
 
   }
-
-  let mrus = [
-
-    ...new Set(
-      banco.map(i => i[0])
-    )
-
-  ];
-
-  mrus.sort();
-
-  let lista =
-    document
-    .getElementById('listaMRUsMapa');
-
-  lista.innerHTML = '';
-
-  mrus.forEach(mru => {
-
-    lista.innerHTML +=
-      `<option value="${mru}">`;
-
-  });
 
 }
 
@@ -841,11 +919,24 @@ function(){
     .value;
 
   let dados =
-    banco.filter(i => i[0] == mru);
+    bancoMapa.filter(i => i[0] == mru);
 
   if(dados.length == 0){
 
     alert('Nenhuma instalação encontrada');
+    return;
+
+  }
+
+  let primeiro =
+    dados.find(i =>
+      i[8] != 'nan' &&
+      i[9] != 'nan'
+    );
+
+  if(!primeiro){
+
+    alert('Sem coordenadas válidas');
     return;
 
   }
@@ -860,8 +951,8 @@ function(){
     .setView(
 
       [
-        parseFloat(dados[0][8]),
-        parseFloat(dados[0][9])
+        parseFloat(primeiro[8]),
+        parseFloat(primeiro[9])
       ],
 
       15
@@ -927,7 +1018,7 @@ if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
 
     navigator.serviceWorker
-      .register('./sw.js?v=13005');
+      .register('./sw.js?v=13006');
 
   });
 
