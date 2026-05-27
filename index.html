@@ -852,45 +852,25 @@ alert(
 
 window.carregarMapa = function(){
 
-const dados =
-bancoMapa.filter(i => i[0] == inputMRUMapa.value);
+let dados = bancoMapa.filter(i=>i[0] == inputMRUMapa.value);
 
-if(dados.length === 0){
-
+if(dados.length===0){
 alert('Nenhuma instalação encontrada');
 return;
-
 }
 
-const primeiro =
-dados.find(i =>
-i[8] &&
-i[9] &&
-i[8] !== 'nan' &&
-i[9] !== 'nan'
-);
+let primeiro = dados.find(i=>i[8] !== 'nan' && i[9] !== 'nan');
 
 if(!primeiro){
-
 alert('Sem coordenadas válidas');
 return;
-
 }
 
 if(map){
-
 map.remove();
-
 }
 
-/* =========================
-   MAPA ANTIGO MAIS LEVE
-========================= */
-
-map = L.map('map',{
-preferCanvas:true,
-zoomControl:true
-}).setView([
+map = L.map('map').setView([
 parseFloat(primeiro[8]),
 parseFloat(primeiro[9])
 ],15);
@@ -898,71 +878,73 @@ parseFloat(primeiro[9])
 L.tileLayer(
 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
 {
-maxZoom:19,
 attribution:'© OpenStreetMap'
 }
 ).addTo(map);
 
-/* =========================
-   MARCADORES
-========================= */
-
 dados.forEach(item=>{
 
 if(
+item[8] == 'nan' ||
+item[9] == 'nan' ||
 !item[8] ||
-!item[9] ||
-item[8] === 'nan' ||
-item[9] === 'nan'
-){
-return;
-}
+!item[9]
+) return;
 
-const lat = parseFloat(item[8]);
-const lng = parseFloat(item[9]);
+let lat = parseFloat(item[8]);
+let lng = parseFloat(item[9]);
 
-if(isNaN(lat) || isNaN(lng)){
-return;
-}
+if(isNaN(lat) || isNaN(lng)) return;
 
-const marker = L.marker([lat,lng]).addTo(map);
+let marker = L.marker([lat,lng]).addTo(map);
 
 marker.bindPopup(`
 
-<b>⚡ Instalação:</b><br>
-${item[1] || ''}
+<div style="font-family:Inter,sans-serif;min-width:220px;">
 
-<br><br>
+<div style="font-weight:700;font-size:15px;margin-bottom:10px;color:#031D44;">
+⚡ ${item[1]}
+</div>
 
+<div style="margin-bottom:8px;">
 <b>👤 Cliente:</b><br>
-${item[7] || ''}
+${item[7] || '-'}
+</div>
 
-<br><br>
+<div style="margin-bottom:8px;">
+<b>🔢 Medidor:</b><br>
+${item[2] || '-'}
+</div>
 
+<div style="margin-bottom:12px;">
 <b>📍 Endereço:</b><br>
-${item[3] || ''}, ${item[4] || ''}
+${item[3] || '-'}, ${item[4] || ''}
+</div>
 
-<br><br>
-
-<a href="${item[10] || '#'}"
-target="_blank">
-
+<a 
+href="${item[10]}" 
+target="_blank"
+style="
+display:block;
+background:#1976D2;
+color:white;
+text-align:center;
+padding:12px;
+border-radius:12px;
+text-decoration:none;
+font-weight:600;
+">
 🗺 Navegar
-
 </a>
+
+</div>
 
 `);
 
 });
 
-/* =========================
-   AJUSTE VISUAL
-========================= */
-
 setTimeout(()=>{
-
 map.invalidateSize();
-
 },300);
 
 }
