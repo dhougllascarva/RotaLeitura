@@ -1294,7 +1294,15 @@ fillOpacity:1
 }
 ).addTo(map);
 
+marcadorUsuario.bringToFront();
+
+if(!map._usuarioCentralizado){
+
 map.setView([latUser,lngUser],17);
+
+map._usuarioCentralizado = true;
+
+}
 
 marcadorUsuario.bindPopup(`
 <div style="
@@ -1563,6 +1571,23 @@ if(bounds.length > 0){
 map.fitBounds(bounds,{
 padding:[30,30]
 });
+
+}
+
+/* =========================
+   CENTRALIZAR NO USUÁRIO
+========================= */
+
+if(marcadorUsuario){
+
+setTimeout(()=>{
+
+map.setView(
+marcadorUsuario.getLatLng(),
+17
+);
+
+},1000);
 
 }
 
