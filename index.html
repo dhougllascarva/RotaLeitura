@@ -1267,11 +1267,15 @@ const bounds = [];
 
 const clusterGroup = L.markerClusterGroup({
 
-maxClusterRadius:20,
+maxClusterRadius:15,
+disableClusteringAtZoom:17,
 
 spiderfyOnMaxZoom:false,
 showCoverageOnHover:false,
 zoomToBoundsOnClick:false,
+
+chunkedLoading:true,
+removeOutsideVisibleBounds:false,
 
 iconCreateFunction:function(cluster){
 
@@ -1406,6 +1410,7 @@ font-weight:600;
 `);
 
 clusterGroup.addLayer(marker);
+marker.bringToFront();
 
 }
 
