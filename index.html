@@ -231,18 +231,66 @@ select:focus{
   font-weight:600;
 }
 
+.barraContainer{
+
+width:260px;
+height:14px;
+
+background:rgba(255,255,255,.15);
+
+border-radius:999px;
+
+margin-top:20px;
+
+overflow:hidden;
+
+}
+
+#barraProgresso{
+
+width:0%;
+height:100%;
+
+background:#00E676;
+
+transition:.2s;
+
+}
+
+#textoPorcentagem{
+
+margin-top:10px;
+
+font-size:14px;
+font-weight:600;
+
+}
+
 </style>
 
 </head>
 <body>
 
 <div id="loadingTela" class="loadingTela oculto">
+
 <div class="loader"></div>
-<div class="loadingTexto">Carregando...</div>
+
+<div class="loadingTexto">
+Carregando...
+</div>
+
+<div class="barraContainer">
+<div id="barraProgresso"></div>
+</div>
+
+<div id="textoPorcentagem">
+0%
+</div>
+
 </div>
 
 <div id="offlineAviso" class="statusOffline oculto">
-📡 Modo Offline Ativo
+📡 Funcionando Offline
 </div>
 
 <div id="loginTela">
@@ -405,7 +453,7 @@ let bancoBuscaIndexado = [];
 let bancoMapa = [];
 let indexes = {};
 let map = null;
-const CACHE_VERSION = '1.0.1';
+const CACHE_VERSION = '1.0.2';
 
 /* =========================
    INDEXED DB
@@ -467,8 +515,9 @@ dbOffline.transaction(['areas'],'readwrite');
 const store = transaction.objectStore('areas');
 
 const request = store.put({
-dados:dados,
-data:Date.now()
+ dados:dados,
+  data:Date.now(),
+  versao:CACHE_VERSION
 },nomeArea);
 
 request.onsuccess = ()=>resolve();
@@ -518,13 +567,38 @@ const AREAS = {
 function mostrarLoading(texto='Carregando...'){
 
 loadingTela.classList.remove('oculto');
-document.querySelector('.loadingTexto').innerText = texto;
+
+document.querySelector('.loadingTexto')
+.innerText = texto;
+
+/* RESET DA BARRA */
+
+document.getElementById('barraProgresso')
+.style.width = '0%';
+
+document.getElementById('textoPorcentagem')
+.innerText = '0%';
 
 }
 
 function ocultarLoading(){
 
 loadingTela.classList.add('oculto');
+
+}
+
+function atualizarBarra(atual,total){
+
+const porcentagem =
+total > 0
+? Math.floor((atual / total) * 100)
+: 0;
+
+document.getElementById('barraProgresso')
+.style.width = porcentagem + '%';
+
+document.getElementById('textoPorcentagem')
+.innerText = porcentagem + '%';
 
 }
 
@@ -637,6 +711,8 @@ appTela.classList.remove('oculto');
 
 await carregarSistema();
 
+await sincronizarOffline();
+
 ocultarLoading();
 
 }catch(e){
@@ -703,6 +779,92 @@ ocultarLoading();
 
 }
 
+async function sincronizarOffline(){
+
+try{
+
+mostrarLoading(
+'Sincronizando dados offline...'
+);
+
+for(const area of permissoes){
+
+const cacheExistente =
+await lerAreaOffline(area);
+
+if(
+   cacheExistente &&
+   cacheExistente.versao === CACHE_VERSION
+){
+
+   console.log(
+      'Área já sincronizada:',
+      area
+   );
+
+   continue;
+
+}
+
+let dadosOffline = [];
+
+const arquivos = indexes[area] || [];
+
+for(const arquivo of arquivos){
+
+const response =
+await fetch('./'+arquivo+'?v=' + CACHE_VERSION);
+
+if(!response.ok){
+
+throw new Error(
+'Erro ao baixar ' + arquivo
+);
+
+}
+
+const parte = await response.json();
+
+dadosOffline.push(...parte);
+
+}
+
+await salvarAreaOffline(
+area,
+dadosOffline
+);
+
+console.log(
+'Área sincronizada:',
+area
+);
+
+}
+
+document.querySelector('.loadingTexto')
+.innerText =
+'✅ Offline pronto';
+
+setTimeout(()=>{
+
+ocultarLoading();
+
+},800);
+
+}catch(e){
+
+console.error(e);
+
+alert(
+'Erro ao sincronizar offline'
+);
+
+ocultarLoading();
+
+}
+
+}
+
 /* =========================
    ÁREAS
 ========================= */
@@ -733,7 +895,6 @@ areaSelect.style.display='none';
 areaMapaSelect.style.display='none';
 
 carregarArea();
-carregarAreaMapa();
 
 }
 
@@ -753,10 +914,28 @@ btnMapa.classList.remove('ativa');
 
 if(tipo === 'busca'){
 
+   /* LIMPA MAPA */
+
+   bancoMapa = [];
+
+   if(map){
+
+      map.remove();
+      map = null;
+
+   }
+
 abaBusca.classList.remove('oculto');
 btnBusca.classList.add('ativa');
 
 }else{
+
+   /* LIMPA BUSCA */
+
+   bancoBusca = [];
+   bancoBuscaIndexado = [];
+
+   resultadosDiv.innerHTML = '';
 
 abaMapa.classList.remove('oculto');
 btnMapa.classList.add('ativa');
@@ -830,18 +1009,34 @@ mostrarLoading('Salvando área offline...');
 const area = areaSelect.value;
 
 if(!area){
+
 alert('Selecione uma área');
+
+ocultarLoading();
+
 return;
+
 }
 
 let dadosOffline = [];
 
 const arquivos = indexes[area] || [];
 
+let totalArquivos = arquivos.length;
+let arquivosBaixados = 0;
+
 for(const arquivo of arquivos){
 
 const response =
 await fetch('./'+arquivo+'?v=' + CACHE_VERSION);
+
+if(!response.ok){
+
+throw new Error(
+'Erro ao baixar ' + arquivo
+);
+
+}
 
 let parte = [];
 
@@ -859,19 +1054,34 @@ throw new Error(
 
 dadosOffline = dadosOffline.concat(parte);
 
+arquivosBaixados++;
+
+atualizarBarra(
+arquivosBaixados,
+totalArquivos
+);
+
 }
 
 await salvarAreaOffline(area,dadosOffline);
 
-alert('Área salva offline com sucesso');
+document.querySelector('.loadingTexto')
+.innerText =
+'✅ Área disponível offline';
+
+setTimeout(()=>{
 
 ocultarLoading();
+
+},1000);
 
 }catch(e){
 
 console.error(e);
 
-alert('Erro ao salvar offline');
+alert(
+'Erro ao salvar offline'
+);
 
 ocultarLoading();
 
@@ -891,72 +1101,38 @@ bancoBusca = [];
 
 const area = areaSelect.value;
 
+if(!area){
 
-try{
+ocultarLoading();
+return;
 
-const arquivos = indexes[area] || [];
-
-for(const arquivo of arquivos){
-
-const response = await fetch('./'+arquivo+'?v=' + CACHE_VERSION);
-
-if(!response.ok){
-throw new Error('Erro ao baixar JSON');
 }
 
-let parte = [];
+const cacheSalvo =
+await lerAreaOffline(area);
 
-try{
-
-parte = await response.json();
-
-}catch{
+if(!cacheSalvo){
 
 throw new Error(
-'JSON da busca corrompido: ' + arquivo
+'Área não sincronizada offline'
 );
 
 }
 
-bancoBusca = bancoBusca.concat(parte);
-
-}
-
-/* =========================
-   SALVAR CACHE
-========================= */
-
-await salvarAreaOffline(area,bancoBusca);
-
-}catch(erroInternet){
-
-console.log('Sem internet, usando cache...');
-
-/* =========================
-   FALLBACK OFFLINE
-========================= */
-
-const cacheSalvo = await lerAreaOffline(area);
-
-if(cacheSalvo){
-
 bancoBusca = cacheSalvo.dados;
 
-}else{
+/* =========================
+   INDEXAÇÃO
+========================= */
 
-throw new Error('Sem internet e sem cache salvo');
-
-}
-
-}
+indexarBusca();
 
 /* =========================
    MRUS
 ========================= */
 
-indexarBusca();
-  
-const mrus = [...new Set(bancoBusca.map(i=>i[0]))];
+const mrus =
+[...new Set(bancoBusca.map(i=>i[0]))];
 
 mrus.sort();
 
@@ -1128,64 +1304,35 @@ async function carregarAreaMapa(){
 
 try{
 
+mostrarLoading('Carregando mapa...');
+
 bancoMapa = [];
 
 const area = areaMapaSelect.value;
 
-try{
+if(!area){
 
-const arquivos = indexes[area] || [];
-
-for(const arquivo of arquivos){
-
-const response =
-await fetch('./'+arquivo+'?v=' + CACHE_VERSION);
-
-if(!response.ok){
-throw new Error();
-}
-
-let parte = [];
-
-try{
-
-parte = await response.json();
-
-}catch{
-
-throw new Error(
-'JSON do mapa corrompido: ' + arquivo
-);
+ocultarLoading();
+return;
 
 }
-
-bancoMapa = bancoMapa.concat(parte);
-
-}
-
-await salvarAreaOffline(
-'mapa_'+area,
-bancoMapa
-);
-
-}catch{
 
 const cache =
-await lerAreaOffline('mapa_'+area);
+await lerAreaOffline(area);
 
-if(cache){
+if(!cache){
+
+throw new Error(
+'Área offline não encontrada'
+);
+
+}
 
 bancoMapa = cache.dados;
 
-}else{
-
-throw new Error(
-'Mapa offline não encontrado'
-);
-
-}
-
-}
+/* =========================
+   MRUS
+========================= */
 
 const mrus =
 [...new Set(bancoMapa.map(i=>i[0]))];
@@ -1202,6 +1349,8 @@ listaMRUsMapa.innerHTML += `
 
 });
 
+ocultarLoading();
+
 }catch(e){
 
 console.error(e);
@@ -1210,6 +1359,8 @@ alert(
 'Erro ao carregar mapa.\n\n' +
 (e.message || e)
 );
+
+ocultarLoading();
 
 }
 
@@ -1626,14 +1777,47 @@ atualizarInternet();
 
 if ('serviceWorker' in navigator) {
 
-window.addEventListener('load', ()=>{
+window.addEventListener('load', async ()=>{
 
-navigator.serviceWorker.register('sw.js')
-.then(()=>{
+try{
 
-console.log('SW ativo');
+const registro =
+await navigator.serviceWorker.register('./sw.js');
+
+console.log('SW registrado');
+
+registro.update();
+
+/* =========================
+NOVA VERSÃO
+========================= */
+
+registro.addEventListener('updatefound', ()=>{
+
+const novoWorker = registro.installing;
+
+novoWorker.addEventListener('statechange', ()=>{
+
+if(
+novoWorker.state === 'installed' &&
+navigator.serviceWorker.controller
+){
+
+console.log('Nova versão disponível');
+
+window.location.reload();
+
+}
 
 });
+
+});
+
+}catch(e){
+
+console.error('Erro SW:', e);
+
+}
 
 });
 
