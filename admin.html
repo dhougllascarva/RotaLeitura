@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+
+<meta charset="UTF-8">
+
+<title>Acesso Administrativo</title>
+
+</head>
+<body>
+
+Carregando...
+
+<script type="module">
+
+import { initializeApp }
+from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+
+import {
+getAuth,
+signInWithEmailAndPassword
+}
+from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
+
+const firebaseConfig = {
+
+apiKey: "SUA_API_KEY",
+authDomain: "rotaleitura.firebaseapp.com",
+projectId: "rotaleitura",
+storageBucket: "rotaleitura.firebasestorage.app",
+messagingSenderId: "1084691059100",
+appId: "SEU_APP_ID"
+
+};
+
+const app =
+initializeApp(firebaseConfig);
+
+const auth =
+getAuth(app);
+
+const params =
+new URLSearchParams(location.search);
+
+const chave =
+params.get("k");
+
+if(chave !== "BI2026"){
+
+document.body.innerHTML =
+"Acesso não autorizado";
+
+throw new Error();
+
+}
+
+try{
+
+await signInWithEmailAndPassword(
+auth,
+"adm@tellus.tec.br",
+"123321"
+);
+
+location.href = "./";
+
+}catch(e){
+
+console.error(e);
+
+document.body.innerHTML =
+"Erro ao autenticar";
+
+}
+
+</script>
+
+</body>
+</html>
