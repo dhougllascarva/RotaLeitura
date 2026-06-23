@@ -2,7 +2,7 @@ const fs = require('fs');
 
 const LIMITE_POR_ARQUIVO = 5000;
 
-const csv = fs.readFileSync('./csv/resumo.csv', 'utf8');
+const csv = fs.readFileSync('./entrada/base.csv', 'utf8');
 
 const linhas = csv
   .split('\n')
@@ -41,16 +41,16 @@ for (const linha of linhas) {
 
 }
 
-if (!fs.existsSync('./json')) {
-  fs.mkdirSync('./json');
-}
+// não precisa mais criar pasta json
 
 /* LIMPAR JSONS ANTIGOS */
 
-const arquivosAntigos = fs.readdirSync('./json');
+const arquivos = fs.readdirSync('./');
 
-for (const arquivo of arquivosAntigos) {
-  fs.unlinkSync('./json/' + arquivo);
+for (const arquivo of arquivos) {
+  if (/^\d+_\d+\.json$/.test(arquivo)) {
+    fs.unlinkSync('./' + arquivo);
+  }
 }
 
 /* GERAR NOVOS */
@@ -69,12 +69,12 @@ for (const area in areas) {
 
     const nomeArquivo = `${area}_${contador}.json`;
 
-    fs.writeFileSync(
-      `./json/${nomeArquivo}`,
-      JSON.stringify(parte)
-    );
+fs.writeFileSync(
+  `./${nomeArquivo}`,
+  JSON.stringify(parte)
+);
 
-    indexes[area].push(`json/${nomeArquivo}`);
+    indexes[area].push(nomeArquivo);
 
     contador++;
 
