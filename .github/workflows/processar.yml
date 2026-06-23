@@ -1,4 +1,3 @@
-```yaml
 name: Atualizar JSONs
 
 on:
@@ -8,19 +7,14 @@ permissions:
   contents: write
 
 jobs:
-
   converter:
-
-    if: github.actor != 'github-actions[bot]'
-
     runs-on: ubuntu-latest
 
     steps:
-
       - name: Baixar repositório
         uses: actions/checkout@v4
 
-      - name: Instalar Node.js
+      - name: Instalar Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -28,24 +22,23 @@ jobs:
       - name: Criar pasta entrada
         run: mkdir -p entrada
 
-      - name: Baixar CSV do Google Drive
+      - name: Baixar CSV
         run: |
           curl -L "https://drive.google.com/uc?export=download&id=1zYfqIrgmebYYHVog4k_xCq5aABMuLvm9" -o entrada/base.csv
 
       - name: Executar conversão
-        run: node converter.js
+        run: node scripts/converter.js
 
-      - name: Remover CSV temporário
+      - name: Remover CSV
         run: rm -f entrada/base.csv
 
-      - name: Commit automático
+      - name: Commit
         run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
 
-          git add dados indexes.json
+          git add *.json indexes.json
 
           git commit -m "Atualização automática dos JSONs" || echo "Sem alterações"
 
           git push
-```
