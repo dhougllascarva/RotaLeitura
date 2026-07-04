@@ -1,6 +1,6 @@
 const fs = require('fs');
 
-const LIMITE_POR_ARQUIVO = 5000;
+const LIMITE_POR_ARQUIVO = 100000;
 
 const csv = fs.readFileSync('./entrada/base.csv', 'utf8');
 
