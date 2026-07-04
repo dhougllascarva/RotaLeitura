@@ -11,6 +11,11 @@ const linhas = csv
 
 linhas.shift();
 
+console.log("Total de linhas:", linhas.length);
+console.log("Primeira linha:");
+console.log(linhas[0]);
+
+
 const areas = {};
 const indexes = {};
 
@@ -19,6 +24,9 @@ for (const linha of linhas) {
   const colunas = linha
   .split(';')
   .map(c => c.replace(/^"|"$/g, '').trim());
+  if (Object.keys(areas).length === 0) {
+    console.log(colunas);
+}
 
   const item = [
     colunas[0] || '',
@@ -92,18 +100,10 @@ fs.writeFileSync(
   JSON.stringify(indexes, null, 2)
 );
 
-console.log('Conversão concluída.');
+console.log("Resumo:");
 
-/* APAGAR JSONS ANTIGOS */
-
-const listaArquivos = fs.readdirSync('./');
-
-for (const arquivo of listaArquivos) {
-
-    if (/^\d{3}(_\d+)?\.json$/.test(arquivo)) {
-
-        fs.unlinkSync('./' + arquivo);
-
-    }
-
+for (const area in areas) {
+    console.log(area, areas[area].length);
 }
+
+console.log('Conversão concluída.');
