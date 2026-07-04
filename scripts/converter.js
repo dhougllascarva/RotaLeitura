@@ -16,7 +16,9 @@ const indexes = {};
 
 for (const linha of linhas) {
 
-  const colunas = linha.split(',');
+  const colunas = linha
+  .split(';')
+  .map(c => c.replace(/^"|"$/g, '').trim());
 
   const item = [
     colunas[0] || '',
