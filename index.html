@@ -717,7 +717,7 @@ appTela.classList.remove('oculto');
 
 await carregarSistema();
 
-await sincronizarOffline();
+await sincronizarOffline(false);
 
 ocultarLoading();
 
@@ -785,8 +785,9 @@ ocultarLoading();
 
 }
 
-async function sincronizarOffline(){
-
+async function sincronizarOffline(forcar = false){
+  
+  
 try{
 
 mostrarLoading(
@@ -795,23 +796,20 @@ mostrarLoading(
 
 for(const area of permissoes){
 
-const cacheExistente =
-await lerAreaOffline(area);
+document.querySelector(".loadingTexto").innerText =
+`Sincronizando ${AREAS[area]}...`;
 
-if(
-   cacheExistente &&
-   cacheExistente.versao === CACHE_VERSION
+
+
+
+const cacheExistente = await lerAreaOffline(area);
+
+if (
+    !forcar &&
+    cacheExistente &&
+    cacheExistente.versao === CACHE_VERSION
 ){
-
-if(DEBUG){
-console.log(
-'Área já sincronizada:',
-area
-);
-}
-
-   continue;
-
+    continue;
 }
 
 let dadosOffline = [];
@@ -841,15 +839,23 @@ await salvarAreaOffline(
 area,
 dadosOffline
 );
-
-if(DEBUG){
-console.log(
-'Área sincronizada:',
-area
+  
+  console.log(
+`${area}: ${dadosOffline.length} instalações sincronizadas`
 );
-}
+
+
 
 }
+
+offlineAviso.innerHTML =
+"✅ Dados offline atualizados";
+
+offlineAviso.classList.remove("oculto");
+
+setTimeout(()=>{
+offlineAviso.classList.add("oculto");
+},3000);
 
 document.querySelector('.loadingTexto')
 .innerText =
@@ -1085,6 +1091,10 @@ return;
 const cacheSalvo =
 await lerAreaOffline(area);
 
+  if(DEBUG){
+    console.log(cacheSalvo);
+}
+
 if(!cacheSalvo){
 
 throw new Error(
@@ -1193,6 +1203,7 @@ const resultados = [];
 
 for(let i = 0; i < bancoBuscaIndexado.length; i++){ 
 
+  
 const item = bancoBuscaIndexado[i];
 
 const okMRU =
@@ -1387,6 +1398,8 @@ attribution:'© Esri'
 );
 
 mapaPadrao.addTo(map);
+
+mapaPadrao.on("tileload", function(){});
 
 /* =========================
    LOCALIZAÇÃO DO LEITURISTA
