@@ -5,6 +5,7 @@ const LIMITE_POR_ARQUIVO = 100000;
 const csv = fs.readFileSync('./entrada/base.csv', 'utf8');
 
 const linhas = csv
+  .replace(/\r/g, '')
   .split('\n')
   .filter(l => l.trim() !== '');
 
