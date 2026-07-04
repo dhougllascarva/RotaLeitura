@@ -91,3 +91,16 @@ fs.writeFileSync(
 );
 
 console.log('Conversão concluída.');
+
+/* APAGAR TODOS OS JSONS ANTIGOS */
+
+const arquivos = fs.readdirSync('./');
+
+for (const arquivo of arquivos) {
+
+    // Apaga qualquer arquivo do tipo 171.json, 171_1.json, 173_25.json...
+    if (/^\d{3}(_\d+)?\.json$/.test(arquivo)) {
+        fs.unlinkSync(arquivo);
+    }
+
+}
