@@ -28,21 +28,25 @@ for (const linha of linhas) {
     console.log(colunas);
 }
 
-  const item = [
-    colunas[0] || '',
-    colunas[1] || '',
-    colunas[2] || '',
-    colunas[3] || '',
-    colunas[4] || '',
-    colunas[5] || '',
-    colunas[6] || '',
-    colunas[7] || '',
-    colunas[8] || '',
-    colunas[9] || '',
-    colunas[10] || ''
-  ];
+// A coluna 0 (Área) serve apenas para organizar os arquivos.
+// Ela NÃO é gravada no JSON.
 
-  const area = String(colunas[0]).substring(0,3);
+const area = String(colunas[0]).trim();
+
+const item = [
+  colunas[1] || '', // MRU
+  colunas[2] || '', // Instalação
+  colunas[3] || '', // Medidor
+  colunas[4] || '', // Rua
+  colunas[5] || '', // Número
+  colunas[6] || '', // Bairro
+  colunas[7] || '', // Local/Cidade
+  colunas[8] || '', // Cliente
+  colunas[9] || '', // Latitude
+  colunas[10] || '', // Longitude
+  colunas[11] || '', // LinkMapa
+  colunas[12] || ''  // Pesquisa
+];
 
   if (!areas[area]) {
     areas[area] = [];
