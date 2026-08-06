@@ -1,0 +1,306 @@
+:root {
+  color-scheme: light;
+  --azul-900: #031d44;
+  --azul-600: #1976d2;
+  --azul-100: #e9eef5;
+  --fundo: #eef2f6;
+  --borda: #e2e8f0;
+  --texto-suave: #64748b;
+  --branco: #fff;
+  --perigo: #c62828;
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: var(--fundo);
+  color: var(--azul-900);
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+.topo {
+  position: sticky;
+  top: 0;
+  z-index: 999;
+  padding: 24px 20px;
+  color: var(--branco);
+  text-align: center;
+  background: var(--azul-900);
+  box-shadow: 0 2px 10px rgb(0 0 0 / 12%);
+}
+
+.logo {
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.sub {
+  margin-top: 6px;
+  color: #d7e3f4;
+  font-size: 14px;
+}
+
+.container {
+  width: min(100%, 980px);
+  margin-inline: auto;
+  padding: 16px;
+}
+
+.card {
+  margin-bottom: 16px;
+  padding: 18px;
+  border: 1px solid var(--borda);
+  border-radius: 20px;
+  background: var(--branco);
+  box-shadow: 0 4px 14px rgb(0 0 0 / 6%);
+}
+
+/* Os cards fora da tela não precisam ser pintados imediatamente. */
+.resultado-card {
+  content-visibility: auto;
+  contain-intrinsic-size: 360px;
+}
+
+input,
+select {
+  width: 100%;
+  margin-bottom: 14px;
+  padding: 15px 16px;
+  border: 1px solid #dce3ea;
+  border-radius: 16px;
+  outline: none;
+  color: var(--azul-900);
+  background: var(--branco);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+input:focus,
+select:focus {
+  border-color: var(--azul-600);
+  box-shadow: 0 0 0 4px rgb(25 118 210 / 12%);
+}
+
+.botao {
+  display: block;
+  width: 100%;
+  margin-top: 12px;
+  padding: 15px;
+  border: 0;
+  border-radius: 16px;
+  color: var(--branco);
+  text-align: center;
+  text-decoration: none;
+  font-weight: 600;
+  cursor: pointer;
+  background: var(--azul-600);
+  transition: transform 0.2s, opacity 0.2s;
+}
+
+.botao:active {
+  transform: scale(0.98);
+}
+
+.botao:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.logout {
+  background: var(--perigo);
+}
+
+.abas {
+  position: sticky;
+  top: 91px;
+  z-index: 998;
+  display: flex;
+  gap: 8px;
+  padding: 8px;
+  background: var(--branco);
+  box-shadow: 0 2px 10px rgb(0 0 0 / 5%);
+}
+
+.aba {
+  flex: 1;
+  padding: 14px;
+  border: 0;
+  border-radius: 14px;
+  color: var(--azul-900);
+  font-weight: 600;
+  cursor: pointer;
+  background: var(--azul-100);
+}
+
+.aba.ativa {
+  color: var(--branco);
+  background: var(--azul-600);
+}
+
+.oculto {
+  display: none !important;
+}
+
+#map {
+  width: 100%;
+  height: min(75vh, 760px);
+  min-height: 460px;
+  margin-top: 14px;
+  overflow: hidden;
+  border-radius: 22px;
+  background: #dbe5ef;
+  contain: layout paint;
+}
+
+.mapa-status {
+  min-height: 22px;
+  margin-top: 12px;
+  color: var(--texto-suave);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.loadingTela {
+  position: fixed;
+  inset: 0;
+  z-index: 999999;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: var(--branco);
+  background: var(--azul-900);
+}
+
+.loader {
+  width: 55px;
+  height: 55px;
+  border: 5px solid rgb(255 255 255 / 20%);
+  border-top-color: var(--branco);
+  border-radius: 50%;
+  animation: girar 1s linear infinite;
+}
+
+@keyframes girar {
+  to { transform: rotate(360deg); }
+}
+
+.loadingTexto {
+  margin-top: 20px;
+  padding-inline: 24px;
+  text-align: center;
+  font-size: 15px;
+}
+
+.infoTitulo {
+  margin-bottom: 4px;
+  color: var(--texto-suave);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.infoValor {
+  margin-bottom: 14px;
+  color: var(--azul-900);
+  font-size: 15px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.statusOffline {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  left: 20px;
+  z-index: 99999;
+  padding: 14px;
+  border-radius: 16px;
+  color: var(--branco);
+  text-align: center;
+  background: var(--azul-900);
+  box-shadow: 0 4px 18px rgb(0 0 0 / 25%);
+}
+
+.contadorResultados {
+  margin-bottom: 16px;
+  color: var(--texto-suave);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.statusOk { color: #00a651; font-weight: 700; }
+.statusAlerta { color: #ff9800; font-weight: 700; }
+.statusErro { color: #d32f2f; font-weight: 700; }
+
+/* Marcadores DOM leves, adequados ao MarkerCluster. */
+.instalacao-marker {
+  width: 18px;
+  height: 18px;
+  border: 3px solid var(--branco);
+  border-radius: 50%;
+  background: #00b0ff;
+  box-shadow: 0 1px 5px rgb(0 0 0 / 35%);
+}
+
+.cluster-marker {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border: 3px solid var(--branco);
+  border-radius: 50%;
+  color: var(--branco);
+  font-size: 14px;
+  font-weight: 700;
+  background: var(--azul-600);
+  box-shadow: 0 0 10px rgb(0 0 0 / 35%);
+}
+
+.popup-rota {
+  min-width: 220px;
+  font-family: Inter, system-ui, sans-serif;
+}
+
+.popup-rota__titulo {
+  margin-bottom: 10px;
+  color: var(--azul-900);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.popup-rota__linha {
+  margin-bottom: 8px;
+}
+
+.popup-rota__botao {
+  display: block;
+  margin-top: 12px;
+  padding: 12px;
+  border-radius: 12px;
+  color: var(--branco) !important;
+  text-align: center;
+  text-decoration: none;
+  font-weight: 600;
+  background: var(--azul-600);
+}
+
+@media (max-width: 600px) {
+  .topo { padding-block: 20px; }
+  .abas { top: 83px; }
+  #map { min-height: 420px; }
+}

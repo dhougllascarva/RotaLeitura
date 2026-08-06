@@ -1,0 +1,10 @@
+{
+  "name": "rotaleitura-pwa",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "check": "node --check src/app.js && node --check src/config.js && node --check src/data-repository.js && node --check src/map-controller.js && node --check src/offline-db.js && node --check src/utils.js && node --check sw.js && node --check scripts/converter.js"
+  }
+}
