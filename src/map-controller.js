@@ -1,4 +1,5 @@
 import { coordenadaValida, escapeHtml, urlSegura } from './utils.js';
+import { LocationWatcher } from './location-watcher.js';
 
 const TILE_OPTIONS = Object.freeze({
   updateWhenIdle: true,
@@ -13,24 +14,34 @@ export class MapController {
   #map = null;
   #pointsLayer = null;
   #userMarker = null;
-  #watchId = null;
+  #locationWatcher;
   #lastPosition = null;
   #visible = false;
 
   constructor(containerId, statusCallback = () => {}) {
     this.#containerId = containerId;
     this.#statusCallback = statusCallback;
+    this.#locationWatcher = new LocationWatcher(
+      navigator.geolocation,
+      (position) => this.#atualizarLocalizacao(position)
+    );
   }
 
-  setVisible(visible) {
+  setVisible(visible, temporary = false) {
     this.#visible = visible;
 
     if (!visible) {
-      this.pararLocalizacao();
-      this.limparPontos();
+      if (temporary) {
+        this.#locationWatcher.pause();
+        this.#removerMarcadorUsuario();
+      } else {
+        this.pararLocalizacao();
+        this.limparPontos();
+      }
       return;
     }
 
+    if (temporary) this.#locationWatcher.resume();
     window.setTimeout(() => this.#map?.invalidateSize(false), 80);
   }
 
@@ -172,53 +183,47 @@ export class MapController {
   }
 
   iniciarLocalizacao() {
-    if (!this.#visible || !this.#map || !navigator.geolocation || this.#watchId !== null) return;
+    if (!this.#visible || !this.#map) return;
+    this.#locationWatcher.start();
+  }
 
-    this.#watchId = navigator.geolocation.watchPosition(
-      (position) => {
-        const current = L.latLng(position.coords.latitude, position.coords.longitude);
-        const now = Date.now();
+  #atualizarLocalizacao(position) {
+    if (!this.#visible || !this.#map) return;
+    const current = L.latLng(position.coords.latitude, position.coords.longitude);
+    const now = Date.now();
 
-        if (this.#lastPosition) {
-          const distance = current.distanceTo(this.#lastPosition.latLng);
-          const elapsed = now - this.#lastPosition.time;
-          if (distance < 3 && elapsed < 5000) return;
-        }
+    if (this.#lastPosition) {
+      const distance = current.distanceTo(this.#lastPosition.latLng);
+      const elapsed = now - this.#lastPosition.time;
+      if (distance < 3 && elapsed < 5000) return;
+    }
 
-        this.#lastPosition = { latLng: current, time: now };
+    this.#lastPosition = { latLng: current, time: now };
 
-        if (this.#userMarker) {
-          this.#userMarker.setLatLng(current);
-          return;
-        }
+    if (this.#userMarker) {
+      this.#userMarker.setLatLng(current);
+      return;
+    }
 
-        this.#userMarker = L.circleMarker(current, {
-          radius: 9,
-          color: '#fff',
-          weight: 3,
-          fillColor: '#00e676',
-          fillOpacity: 1,
-          interactive: true
-        })
-          .bindPopup('📍 Sua localização')
-          .addTo(this.#map);
-      },
-      () => {},
-      {
-        enableHighAccuracy: true,
-        maximumAge: 15000,
-        timeout: 12000
-      }
-    );
+    this.#userMarker = L.circleMarker(current, {
+      radius: 9,
+      color: '#fff',
+      weight: 3,
+      fillColor: '#00e676',
+      fillOpacity: 1,
+      interactive: true
+    })
+      .bindPopup('📍 Sua localização')
+      .addTo(this.#map);
   }
 
   pararLocalizacao() {
-    if (this.#watchId !== null) {
-      navigator.geolocation.clearWatch(this.#watchId);
-      this.#watchId = null;
-    }
-
+    this.#locationWatcher.stop();
     this.#lastPosition = null;
+    this.#removerMarcadorUsuario();
+  }
+
+  #removerMarcadorUsuario() {
     if (this.#userMarker && this.#map) {
       this.#map.removeLayer(this.#userMarker);
       this.#userMarker = null;

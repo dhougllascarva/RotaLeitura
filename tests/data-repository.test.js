@@ -49,3 +49,28 @@ test('libera referências da área ativa', async () => {
   assert.equal(repository.activeArea, '');
   assert.equal(repository.rows.length, 0);
 });
+
+test('carregamento antigo não sobrescreve área escolhida depois', async () => {
+  let resolverA;
+  let resolverB;
+  const leituraA = new Promise((resolve) => { resolverA = resolve; });
+  const leituraB = new Promise((resolve) => { resolverB = resolve; });
+  const repository = new DataRepository({
+    lerArea(area) {
+      return area === 'A' ? leituraA : leituraB;
+    }
+  });
+
+  const carregamentoA = repository.carregarArea('A');
+  const carregamentoB = repository.carregarArea('B');
+  const rowsB = [['00200', 'B']];
+  resolverB({ dados: rowsB });
+  const resumoB = await carregamentoB;
+  resolverA({ dados: [['00100', 'A']] });
+  const resumoA = await carregamentoA;
+
+  assert.equal(resumoB.area, 'B');
+  assert.equal(resumoA, null);
+  assert.equal(repository.activeArea, 'B');
+  assert.strictEqual(repository.rows, rowsB);
+});

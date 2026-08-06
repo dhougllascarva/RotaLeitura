@@ -11,6 +11,7 @@ export class DataRepository {
   #mruIndex = new Map();
   #normalizedMruIndex = new Map();
   #loadingPromise = null;
+  #loadGeneration = 0;
 
   constructor(offlineDb) {
     this.#offlineDb = offlineDb;
@@ -38,7 +39,8 @@ export class DataRepository {
       return this.#loadingPromise.promise;
     }
 
-    const promise = this.#carregar(area);
+    const generation = ++this.#loadGeneration;
+    const promise = this.#carregar(area, generation);
     this.#loadingPromise = { area, promise };
 
     try {
@@ -50,13 +52,17 @@ export class DataRepository {
     }
   }
 
-  async #carregar(area) {
+  async #carregar(area, generation) {
     const cache = await this.#offlineDb.lerArea(area);
     if (!cache?.dados) {
       throw new Error('Área não sincronizada offline');
     }
 
-    this.liberar();
+    if (generation !== this.#loadGeneration) {
+      return null;
+    }
+
+    this.#limparDados();
     this.#activeArea = area;
     this.#rows = cache.dados;
 
@@ -106,6 +112,11 @@ export class DataRepository {
   }
 
   liberar() {
+    this.#loadGeneration += 1;
+    this.#limparDados();
+  }
+
+  #limparDados() {
     this.#activeArea = '';
     this.#rows = [];
     this.#mruIndex.clear();

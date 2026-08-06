@@ -1,3 +1,5 @@
+importScripts('./src/sw-cache-policy.js');
+
 const VERSION = 'v2.0.0';
 const STATIC_CACHE = `rotaleitura-static-${VERSION}`;
 const RUNTIME_CACHE = `rotaleitura-runtime-${VERSION}`;
@@ -6,7 +8,7 @@ const SATELLITE_CACHE = `rotaleitura-satellite-${VERSION}`;
 
 const MAP_CACHE_LIMIT = 500;
 const SATELLITE_CACHE_LIMIT = 250;
-let tileWrites = 0;
+const shouldTrimTileCache = RotaLeituraCachePolicy.createTileWriteTracker();
 
 const APP_SHELL = [
   './',
@@ -18,6 +20,9 @@ const APP_SHELL = [
   './src/data-repository.js',
   './src/map-controller.js',
   './src/offline-db.js',
+  './src/location-watcher.js',
+  './src/profile-access.js',
+  './src/sw-cache-policy.js',
   './src/utils.js',
   './launchericon-192x192.png'
 ];
@@ -40,9 +45,8 @@ self.addEventListener('activate', (event) => {
     ]);
 
     const keys = await caches.keys();
-    await Promise.all(keys.map((key) => (
-      validCaches.has(key) ? Promise.resolve() : caches.delete(key)
-    )));
+    const obsoleteCaches = RotaLeituraCachePolicy.cachesToDelete(keys, validCaches);
+    await Promise.all(obsoleteCaches.map((key) => caches.delete(key)));
 
     await Promise.all([
       trimCache(MAP_CACHE, MAP_CACHE_LIMIT),
@@ -177,10 +181,8 @@ async function cacheTile(request, cacheName, limit) {
   const response = await fetch(request);
   if (response.ok || response.type === 'opaque') {
     await cache.put(request, response.clone());
-    tileWrites += 1;
-
     // Evita executar cache.keys() em cada tile, que também causaria lentidão.
-    if (tileWrites % 25 === 0) {
+    if (shouldTrimTileCache(cacheName)) {
       await trimCache(cacheName, limit);
     }
   }

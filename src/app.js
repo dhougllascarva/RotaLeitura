@@ -27,6 +27,7 @@ import {
 import { DataRepository } from './data-repository.js';
 import { MapController } from './map-controller.js';
 import { OfflineDatabase } from './offline-db.js';
+import { tratarErroDePerfil, validarPerfilSnapshot } from './profile-access.js';
 import {
   cederAoNavegador,
   debounce,
@@ -83,6 +84,7 @@ let indexes = {};
 let abaAtual = 'busca';
 let pesquisaGeneration = 0;
 let authGeneration = 0;
+let areaGeneration = 0;
 let ultimoResultado = { rows: [], limitado: false, visiveis: 0 };
 
 await Promise.all([
@@ -123,17 +125,15 @@ function atualizarInternet() {
 
 async function obterPerfil(user) {
   const snap = await getDoc(doc(firestore, 'usuarios', user.email));
+  return validarPerfilSnapshot(snap);
+}
 
-  if (!snap.exists()) {
-    throw new Error('Usuário sem permissão.');
-  }
-
-  const dados = snap.data();
-  if (!dados.ativo) {
-    throw new Error('Usuário desativado.');
-  }
-
-  return dados;
+async function tratarFalhaPerfil(error, mensagemTransitoria) {
+  return tratarErroDePerfil(error, {
+    logout: () => signOut(auth),
+    acessoNegado: (falha) => mostrarErro('Seu acesso não está mais disponível.', falha),
+    falhaTransitoria: (falha) => mostrarErro(mensagemTransitoria, falha)
+  });
 }
 
 async function verificarPermissaoAtual() {
@@ -143,8 +143,10 @@ async function verificarPermissaoAtual() {
   try {
     await obterPerfil(user);
   } catch (error) {
-    mostrarErro('Seu acesso não está mais disponível.', error);
-    await signOut(auth);
+    await tratarFalhaPerfil(
+      error,
+      'Não foi possível verificar seu acesso agora. Tente novamente quando a conexão estabilizar.'
+    );
   }
 }
 
@@ -232,6 +234,7 @@ function preencherMruLists(mrus) {
 }
 
 async function selecionarArea(area, origem) {
+  const generation = ++areaGeneration;
   pesquisaGeneration += 1;
   elements.resultados.replaceChildren();
   ultimoResultado = { rows: [], limitado: false, visiveis: 0 };
@@ -255,6 +258,7 @@ async function selecionarArea(area, origem) {
   try {
     mostrarLoading(`Carregando ${AREAS[area] ?? area}…`);
     const resumo = await repository.carregarArea(area);
+    if (generation !== areaGeneration || !resumo) return;
     preencherMruLists(resumo.mrus);
     atualizarStatusOffline(area, resumo.total);
 
@@ -262,11 +266,12 @@ async function selecionarArea(area, origem) {
       localStorage.setItem('rotaleitura:lastArea', area);
     } catch {}
   } catch (error) {
+    if (generation !== areaGeneration) return;
     mostrarErro('Erro ao carregar a área.', error);
     if (origem === 'busca') elements.area.value = '';
     if (origem === 'mapa') elements.areaMapa.value = '';
   } finally {
-    ocultarLoading();
+    if (generation === areaGeneration) ocultarLoading();
   }
 }
 
@@ -432,6 +437,23 @@ async function exibirMapa() {
 }
 
 async function fazerLogin() {
+  if (auth.currentUser) {
+    try {
+      const generation = ++authGeneration;
+      await iniciarSessao(auth.currentUser, generation);
+    } catch (error) {
+      if (error instanceof Error) {
+        await tratarFalhaPerfil(
+          error,
+          'Não foi possível carregar o usuário agora. Sua autenticação foi mantida; tente novamente.'
+        );
+      }
+    } finally {
+      ocultarLoading();
+    }
+    return;
+  }
+
   const email = elements.email.value.trim();
   const senha = elements.senha.value;
 
@@ -505,8 +527,10 @@ onAuthStateChanged(auth, async (user) => {
     await iniciarSessao(user, generation);
   } catch (error) {
     if (generation !== authGeneration) return;
-    mostrarErro('Erro ao carregar o usuário.', error);
-    await signOut(auth);
+    await tratarFalhaPerfil(
+      error,
+      'Não foi possível carregar o usuário agora. Sua autenticação foi mantida; tente entrar novamente.'
+    );
   } finally {
     if (generation === authGeneration) ocultarLoading();
   }
@@ -543,7 +567,7 @@ window.addEventListener('offline', atualizarInternet);
 
 document.addEventListener('visibilitychange', () => {
   const visivel = document.visibilityState === 'visible';
-  mapController.setVisible(visivel && abaAtual === 'mapa');
+  if (abaAtual === 'mapa') mapController.setVisible(visivel, true);
 
   if (visivel && navigator.onLine) {
     verificarPermissaoAtual();
