@@ -16,14 +16,13 @@ import {
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 
 import {
-  APP_VERSION,
   AREAS,
-  DATA_CACHE_VERSION,
   DEBUG,
   FIREBASE_CONFIG,
   SEARCH_MATCH_LIMIT,
   SEARCH_PAGE_SIZE
 } from './config.js';
+import { sincronizarDados } from './data-sync.js';
 import { DataRepository } from './data-repository.js';
 import { MapController } from './map-controller.js';
 import { OfflineDatabase } from './offline-db.js';
@@ -80,11 +79,11 @@ const mapController = new MapController('map', (text) => {
 });
 
 let permissoes = [];
-let indexes = {};
 let abaAtual = 'busca';
 let pesquisaGeneration = 0;
 let authGeneration = 0;
 let areaGeneration = 0;
+let avisoSincronizacao = '';
 let ultimoResultado = { rows: [], limitado: false, visiveis: 0 };
 
 await Promise.all([
@@ -112,15 +111,20 @@ function mostrarErro(mensagem, erro) {
 }
 
 function atualizarInternet() {
-  elements.offlineAviso.textContent = navigator.onLine
-    ? '✅ Conexão restabelecida'
-    : '📡 Funcionando offline';
-
-  if (navigator.onLine) {
-    elements.offlineAviso.classList.add('oculto');
-  } else {
+  if (!navigator.onLine) {
+    elements.offlineAviso.textContent = '📡 Funcionando offline';
     elements.offlineAviso.classList.remove('oculto');
+    return;
   }
+
+  if (avisoSincronizacao) {
+    elements.offlineAviso.textContent = avisoSincronizacao;
+    elements.offlineAviso.classList.remove('oculto');
+    return;
+  }
+
+  elements.offlineAviso.textContent = '✅ Conexão restabelecida';
+  elements.offlineAviso.classList.add('oculto');
 }
 
 async function obterPerfil(user) {
@@ -150,18 +154,6 @@ async function verificarPermissaoAtual() {
   }
 }
 
-async function carregarIndexes() {
-  const response = await fetch(`./indexes.json?v=${APP_VERSION}`, {
-    cache: 'no-cache'
-  });
-
-  if (!response.ok) {
-    throw new Error('indexes.json não encontrado');
-  }
-
-  indexes = await response.json();
-}
-
 function popularAreas() {
   const options = [
     '<option value="">Selecionar Área</option>',
@@ -178,50 +170,28 @@ function popularAreas() {
   elements.areaMapa.hidden = apenasUmaArea;
 }
 
-async function sincronizarOffline(forcar = false) {
-  for (const area of permissoes) {
-    atualizarLoading(`Verificando ${AREAS[area] ?? area}…`);
+function atualizarProgressoSincronizacao({ etapa, area, parte, partes }) {
+  const nomeArea = AREAS[area] ?? area;
 
-    const cacheExistente = await offlineDb.lerArea(area);
-    const cacheAtual = cacheExistente?.versao === DATA_CACHE_VERSION;
-
-    if (!forcar && cacheAtual) continue;
-
-    if (!navigator.onLine) {
-      if (cacheExistente?.dados?.length) continue;
-      throw new Error(`A área ${area} ainda não está disponível offline.`);
-    }
-
-    const arquivos = indexes[area] ?? [];
-    if (!arquivos.length) {
-      throw new Error(`Nenhum arquivo configurado para a área ${area}.`);
-    }
-
-    const dadosOffline = [];
-
-    for (let arquivoIndex = 0; arquivoIndex < arquivos.length; arquivoIndex += 1) {
-      const arquivo = arquivos[arquivoIndex];
-      atualizarLoading(
-        `Baixando ${AREAS[area] ?? area}: arquivo ${arquivoIndex + 1}/${arquivos.length}…`
-      );
-
-      const response = await fetch(`./${arquivo}?v=${DATA_CACHE_VERSION}`, {
-        cache: 'no-store'
-      });
-
-      if (!response.ok) {
-        throw new Error(`Erro ao baixar ${arquivo}`);
-      }
-
-      const parte = await response.json();
-      for (const row of parte) dadosOffline.push(row);
-      await cederAoNavegador();
-    }
-
-    atualizarLoading(`Salvando ${AREAS[area] ?? area} para uso offline…`);
-    await offlineDb.salvarArea(area, dadosOffline, DATA_CACHE_VERSION);
-    await cederAoNavegador();
+  if (etapa === 'baixando') {
+    atualizarLoading(`Baixando ${nomeArea}: arquivo ${parte}/${partes}…`);
+    return;
   }
+
+  if (etapa === 'salvando') {
+    atualizarLoading(`Salvando ${nomeArea} para uso offline…`);
+    return;
+  }
+
+  atualizarLoading(`Verificando ${nomeArea}…`);
+}
+
+function atualizarAvisoSincronizacao(resultado) {
+  const possuiFalha = resultado.degradadas.length > 0 || resultado.indisponiveis.length > 0;
+  avisoSincronizacao = possuiFalha
+    ? '⚠️ Não foi possível atualizar todos os dados. Usando as bases salvas disponíveis.'
+    : '';
+  atualizarInternet();
 }
 
 function preencherMruLists(mrus) {
@@ -488,12 +458,30 @@ async function iniciarSessao(user, generation) {
   }
 
   atualizarLoading('Carregando configuração…');
-  await carregarIndexes();
-  popularAreas();
-
-  atualizarLoading('Sincronizando dados offline…');
-  await sincronizarOffline(false);
+  const resultadoSincronizacao = await sincronizarDados({
+    areas: permissoes,
+    offlineDb,
+    fetchFn: fetch,
+    yieldFn: cederAoNavegador,
+    onProgress: atualizarProgressoSincronizacao
+  });
   if (generation !== authGeneration) return;
+
+  if (DEBUG) {
+    for (const [area, resultado] of Object.entries(resultadoSincronizacao.areas)) {
+      if (resultado.erro) console.warn(`Sincronização da área ${area}: ${resultado.erro}`);
+    }
+  }
+
+  permissoes = permissoes.filter(
+    (area) => resultadoSincronizacao.areas[area]?.status !== 'indisponivel'
+  );
+  if (!permissoes.length) {
+    throw new Error('Nenhuma área autorizada está disponível neste aparelho. Conecte-se e tente novamente.');
+  }
+
+  atualizarAvisoSincronizacao(resultadoSincronizacao);
+  popularAreas();
 
   elements.loginTela.classList.add('oculto');
   elements.appTela.classList.remove('oculto');
@@ -514,11 +502,13 @@ onAuthStateChanged(auth, async (user) => {
 
   if (!user) {
     permissoes = [];
+    avisoSincronizacao = '';
     repository.liberar();
     mapController.destruir();
     elements.loginTela.classList.remove('oculto');
     elements.appTela.classList.add('oculto');
     elements.senha.value = '';
+    atualizarInternet();
     ocultarLoading();
     return;
   }
@@ -575,9 +565,18 @@ document.addEventListener('visibilitychange', () => {
 });
 
 if ('serviceWorker' in navigator) {
+  let recarregandoParaNovoWorker = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (recarregandoParaNovoWorker) return;
+    recarregandoParaNovoWorker = true;
+    window.location.reload();
+  });
+
   window.addEventListener('load', async () => {
     try {
-      const registration = await navigator.serviceWorker.register('./sw.js');
+      const registration = await navigator.serviceWorker.register('./sw.js', {
+        updateViaCache: 'none'
+      });
       registration.update();
     } catch (error) {
       if (DEBUG) console.error('Erro ao registrar Service Worker:', error);

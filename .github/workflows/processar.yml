@@ -2,43 +2,315 @@ name: Atualizar JSONs
 
 on:
   workflow_dispatch:
+    inputs:
+      modo:
+        description: Executar somente a validação ou publicar os dados validados
+        required: true
+        default: validar
+        type: choice
+        options:
+          - validar
+          - publicar
+      confirmacao:
+        description: Para publicar, digite ATUALIZAR
+        required: false
+        default: ''
+        type: string
+      confirmacao_reducao:
+        description: Se houver queda superior a 15%, digite ACEITAR_REDUCAO
+        required: false
+        default: ''
+        type: string
 
-permissions:
-  contents: write
+concurrency:
+  group: atualizar-instalacoes-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
-  converter:
+  validar:
+    name: Baixar, converter e validar
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
 
     steps:
       - name: Baixar repositório
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
 
       - name: Instalar Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
 
-      - name: Criar pasta entrada
-        run: mkdir -p entrada
-
-      - name: Baixar CSV
+      - name: Preparar caminhos temporários
+        shell: bash
         run: |
-          curl -L "https://drive.google.com/uc?export=download&id=1zYfqIrgmebYYHVog4k_xCq5aABMuLvm9" -o entrada/base.csv
+          echo "CSV_PATH=$RUNNER_TEMP/rotaleitura-input/dbcr17.csv" >> "$GITHUB_ENV"
+          echo "OUTPUT_DIR=$RUNNER_TEMP/rotaleitura-artifact/dados" >> "$GITHUB_ENV"
+          echo "REPORT_PATH=$RUNNER_TEMP/rotaleitura-artifact/conversion-report.json" >> "$GITHUB_ENV"
 
-      - name: Executar conversão
-        run: node scripts/converter.js
+      - name: Preparar diretórios temporários
+        shell: bash
+        run: mkdir -p "$(dirname "$CSV_PATH")" "$OUTPUT_DIR"
 
-      - name: Remover CSV
-        run: rm -f entrada/base.csv
-
-      - name: Commit
+      - name: Baixar CSV público
+        shell: bash
         run: |
-          git config user.name "github-actions"
-          git config user.email "actions@github.com"
+          curl --fail --location \
+            --retry 5 --retry-delay 2 --retry-all-errors \
+            --connect-timeout 20 --max-time 600 \
+            'https://drive.usercontent.google.com/download?id=1Rsv9W12zcSmrAjR2qGsp-_TZTYtSfa1M&export=download&confirm=t' \
+            --output "$CSV_PATH"
 
-          git add *.json indexes.json
+      - name: Validar download e cabeçalho
+        shell: bash
+        run: |
+          set -euo pipefail
 
-          git commit -m "Atualização automática dos JSONs" || echo "Sem alterações"
+          test -f "$CSV_PATH"
+          test -s "$CSV_PATH"
 
-          git push
+          tamanho="$(stat --format='%s' "$CSV_PATH")"
+          if (( tamanho < 1048576 )); then
+            echo "::error::Download pequeno demais para ser a base de instalações (${tamanho} bytes)."
+            exit 1
+          fi
+
+          mime="$(file --brief --mime-type "$CSV_PATH")"
+          if [[ "$mime" == 'text/html' || "$mime" == 'application/xhtml+xml' ]]; then
+            echo "::error::O download retornou HTML em vez de CSV."
+            exit 1
+          fi
+
+          if head -c 8192 "$CSV_PATH" | grep --quiet --text --ignore-case --extended-regexp \
+            '<!doctype[[:space:]]+html|<html|ServiceLogin|accounts\.google\.com'; then
+            echo "::error::O download parece ser uma página de login ou erro do Google."
+            exit 1
+          fi
+
+          node scripts/converter.js --check-header --input "$CSV_PATH"
+
+      - name: Converter dados
+        shell: bash
+        run: |
+          node scripts/converter.js \
+            --input "$CSV_PATH" \
+            --output "$OUTPUT_DIR" \
+            --baseline "$GITHUB_WORKSPACE" \
+            --report "$REPORT_PATH"
+
+      - name: Validar artefatos gerados
+        run: node scripts/converter.js --validate-output "$OUTPUT_DIR"
+
+      - name: Mostrar resumo agregado
+        shell: bash
+        run: |
+          node --input-type=module -e '
+            import fs from "node:fs";
+            const report = JSON.parse(fs.readFileSync(process.env.REPORT_PATH, "utf8"));
+            const lines = [
+              "## Validação da base de instalações",
+              "",
+              `Total geral: **${report.totalGeral.toLocaleString("pt-BR")}**`,
+              "",
+              "| Área | Instalações | Arquivos | SHA-256 |",
+              "|---|---:|---:|---|",
+              ...Object.entries(report.areas).map(([area, info]) =>
+                `| ${area} | ${info.total.toLocaleString("pt-BR")} | ${info.arquivos} | \`${info.version}\` |`
+              ),
+              "",
+              `Coordenadas normais: ${report.coordenadas.normais.toLocaleString("pt-BR")}`,
+              `Coordenadas recuperadas: ${report.coordenadas.recuperadas.toLocaleString("pt-BR")}`,
+              `Coordenadas inválidas: ${report.coordenadas.invalidas.toLocaleString("pt-BR")}`,
+              `Registros sem medidor: ${report.registrosSemMedidor.toLocaleString("pt-BR")}`
+            ];
+            if (report.reducoesSignificativas.length) {
+              lines.push("", "⚠️ Há redução superior a 15%; publicar exige ACEITAR_REDUCAO.");
+            }
+            fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${lines.join("\n")}\n`);
+          '
+
+      - name: Executar testes
+        run: npm test
+
+      - name: Verificar sintaxe
+        run: npm run check
+
+      - name: Verificar whitespace do repositório
+        run: git diff --check
+
+      - name: Remover CSV temporário
+        if: always()
+        shell: bash
+        run: rm -f -- "$CSV_PATH"
+
+      - name: Guardar exatamente os dados validados
+        if: inputs.modo == 'publicar'
+        uses: actions/upload-artifact@v4
+        with:
+          name: dados-validados-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ env.OUTPUT_DIR }}
+            ${{ env.REPORT_PATH }}
+          if-no-files-found: error
+          retention-days: 1
+
+  publicar:
+    name: Publicar dados validados
+    if: inputs.modo == 'publicar'
+    needs: validar
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    env:
+      CONFIRMACAO: ${{ inputs.confirmacao }}
+      CONFIRMACAO_REDUCAO: ${{ inputs.confirmacao_reducao }}
+
+    steps:
+      - name: Confirmar branch e publicação
+        env:
+          REF_TYPE: ${{ github.ref_type }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "$REF_TYPE" != 'branch' ]]; then
+            echo "::error::A publicação só pode partir de uma branch."
+            exit 1
+          fi
+
+          if [[ "$CONFIRMACAO" != 'ATUALIZAR' ]]; then
+            echo "::error::Publicação não confirmada. Execute novamente informando ATUALIZAR."
+            exit 1
+          fi
+
+      - name: Baixar repositório na revisão validada
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Instalar Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Preparar caminhos temporários
+        shell: bash
+        run: |
+          echo "ARTIFACT_DIR=$RUNNER_TEMP/rotaleitura-artifact" >> "$GITHUB_ENV"
+          echo "GENERATED_DIR=$RUNNER_TEMP/rotaleitura-artifact/dados" >> "$GITHUB_ENV"
+          echo "REPORT_PATH=$RUNNER_TEMP/rotaleitura-artifact/conversion-report.json" >> "$GITHUB_ENV"
+
+      - name: Recuperar dados validados
+        uses: actions/download-artifact@v4
+        with:
+          name: dados-validados-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.ARTIFACT_DIR }}
+
+      - name: Revalidar artefato e redução
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          node scripts/converter.js \
+            --validate-output "$GENERATED_DIR" \
+            --baseline "$GITHUB_WORKSPACE" \
+            --report "$REPORT_PATH"
+
+          node --input-type=module -e '
+            import fs from "node:fs";
+            const report = JSON.parse(fs.readFileSync(process.env.REPORT_PATH, "utf8"));
+            const reductions = report.reducoesSignificativas;
+            if (!Array.isArray(reductions)) throw new Error("Relatório de redução inválido");
+            if (reductions.length && process.env.CONFIRMACAO_REDUCAO !== "ACEITAR_REDUCAO") {
+              const areas = reductions.map(({ area }) => area).join(", ");
+              throw new Error(`Redução superior a 15% nas áreas ${areas}. Execute novamente informando ACEITAR_REDUCAO.`);
+            }
+          '
+
+      - name: Executar novamente as verificações de código
+        run: |
+          npm test
+          npm run check
+          git diff --check
+
+      - name: Aplicar somente os dados gerados
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          node --input-type=module -e '
+            import fs from "node:fs";
+            import path from "node:path";
+
+            const source = process.env.GENERATED_DIR;
+            const indexes = JSON.parse(fs.readFileSync(path.join(source, "indexes.json"), "utf8"));
+            const wanted = new Set();
+
+            for (const [area, files] of Object.entries(indexes)) {
+              if (!/^\d{3}$/.test(area) || !Array.isArray(files)) {
+                throw new Error(`Índice inválido para a área ${area}.`);
+              }
+
+              for (let index = 0; index < files.length; index += 1) {
+                const filename = files[index];
+                if (filename !== `${area}_${index + 1}.json`) {
+                  throw new Error(`Parte inválida no índice da área ${area}.`);
+                }
+                wanted.add(filename);
+              }
+            }
+
+            for (const filename of fs.readdirSync(".")) {
+              if (/^\d+_\d+\.json$/.test(filename) && !wanted.has(filename)) {
+                fs.rmSync(filename);
+              }
+            }
+
+            for (const filename of wanted) {
+              fs.copyFileSync(path.join(source, filename), filename);
+            }
+
+            for (const filename of ["indexes.json", "data-manifest.json"]) {
+              fs.copyFileSync(path.join(source, filename), filename);
+            }
+          '
+
+          node scripts/converter.js --validate-output "$GITHUB_WORKSPACE"
+
+      - name: Preparar commit seletivo
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git add -A -- ':(glob)[0-9]*_[0-9]*.json' indexes.json data-manifest.json
+
+          if git diff --cached --name-only | grep --extended-regexp --invert-match \
+            '^([0-9]+_[0-9]+\.json|indexes\.json|data-manifest\.json)$'; then
+            echo "::error::O staging contém arquivo fora da lista permitida."
+            exit 1
+          fi
+
+          git diff --cached --check
+
+      - name: Commit e push na branch de origem
+        env:
+          BRANCH_NAME: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if git diff --cached --quiet; then
+            echo 'Sem alterações nos dados'
+            exit 0
+          fi
+
+          git config user.name 'github-actions'
+          git config user.email 'actions@github.com'
+          git commit -m 'Atualiza base de instalações'
+          git push origin "HEAD:${BRANCH_NAME}"

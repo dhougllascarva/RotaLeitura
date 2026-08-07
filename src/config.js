@@ -16,8 +16,8 @@ export const AREAS = Object.freeze({
   '176': 'CAMACAN'
 });
 
-export const APP_VERSION = '2.0.0';
-// Mantido para aproveitar os dados já gravados pela versão anterior.
+export const APP_VERSION = '2.1.0';
+// Identificador legado: caches com este valor migram uma vez para o hash do manifesto.
 export const DATA_CACHE_VERSION = '1.0.5';
 export const SEARCH_PAGE_SIZE = 100;
 export const SEARCH_MATCH_LIMIT = 1000;

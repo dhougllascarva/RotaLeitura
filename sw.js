@@ -1,10 +1,12 @@
-importScripts('./src/sw-cache-policy.js');
+importScripts('./src/sw-cache-policy.js?v=2.1.0');
 
-const VERSION = 'v2.0.0';
+const VERSION = 'v2.1.0';
+const TILE_CACHE_VERSION = 'v2.0.0';
 const STATIC_CACHE = `rotaleitura-static-${VERSION}`;
 const RUNTIME_CACHE = `rotaleitura-runtime-${VERSION}`;
-const MAP_CACHE = `rotaleitura-map-${VERSION}`;
-const SATELLITE_CACHE = `rotaleitura-satellite-${VERSION}`;
+// Tiles são imutáveis e caros para baixar novamente; sua versão é independente do app shell.
+const MAP_CACHE = `rotaleitura-map-${TILE_CACHE_VERSION}`;
+const SATELLITE_CACHE = `rotaleitura-satellite-${TILE_CACHE_VERSION}`;
 
 const MAP_CACHE_LIMIT = 500;
 const SATELLITE_CACHE_LIMIT = 250;
@@ -17,6 +19,7 @@ const APP_SHELL = [
   './assets/app.css',
   './src/app.js',
   './src/config.js',
+  './src/data-sync.js',
   './src/data-repository.js',
   './src/map-controller.js',
   './src/offline-db.js',
@@ -77,7 +80,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  if (url.pathname.endsWith('/indexes.json')) {
+  if (RotaLeituraCachePolicy.isConfigurationPath(url.pathname)) {
     event.respondWith(networkFirst(request, RUNTIME_CACHE));
     return;
   }
@@ -107,7 +110,7 @@ function isFirebaseRequest(url) {
 }
 
 function isAreaDataFile(url) {
-  return /^\/?.*\/\d+_\d+\.json$/i.test(url.pathname);
+  return RotaLeituraCachePolicy.isAreaDataPath(url.pathname);
 }
 
 function isOpenStreetMapTile(url) {
@@ -132,13 +135,13 @@ async function cacheFirst(request, cacheName) {
 
 async function networkFirst(request, cacheName, fallbackPath = null) {
   const cache = await caches.open(cacheName);
+  let response;
 
   try {
-    const response = await fetch(request);
-    if (response.ok || response.type === 'opaque') {
-      await cache.put(request, response.clone());
+    response = await fetch(request);
+    if (!RotaLeituraCachePolicy.isUsableNetworkResponse(response)) {
+      throw new Error(`Resposta HTTP inválida: ${response.status}`);
     }
-    return response;
   } catch (error) {
     const cached = await cache.match(request, { ignoreSearch: true });
     if (cached) return cached;
@@ -150,6 +153,14 @@ async function networkFirst(request, cacheName, fallbackPath = null) {
 
     throw error;
   }
+
+  try {
+    await cache.put(request, response.clone());
+  } catch {
+    // Falta de espaço no Cache Storage não invalida uma resposta de rede atual.
+  }
+
+  return response;
 }
 
 async function staleWhileRevalidate(request, cacheName) {
