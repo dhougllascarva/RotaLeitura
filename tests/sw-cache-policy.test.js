@@ -32,3 +32,22 @@ test('mapa e satélite possuem contadores de limpeza independentes', () => {
   assert.equal(shouldTrim('satelite'), false);
   assert.equal(shouldTrim('satelite'), true);
 });
+
+test('índice e manifesto usam a política de configuração, sem confundir partes grandes', () => {
+  const policy = loadPolicy();
+
+  assert.equal(policy.isConfigurationPath('/app/indexes.json'), true);
+  assert.equal(policy.isConfigurationPath('/app/data-manifest.json'), true);
+  assert.equal(policy.isConfigurationPath('/app/171_1.json'), false);
+  assert.equal(policy.isAreaDataPath('/app/171_1.json'), true);
+  assert.equal(policy.isAreaDataPath('/app/data-manifest.json'), false);
+});
+
+test('network-first só aceita respostas HTTP utilizáveis', () => {
+  const policy = loadPolicy();
+
+  assert.equal(policy.isUsableNetworkResponse({ ok: true, type: 'basic' }), true);
+  assert.equal(policy.isUsableNetworkResponse({ ok: false, type: 'opaque' }), true);
+  assert.equal(policy.isUsableNetworkResponse({ ok: false, type: 'basic' }), false);
+  assert.equal(policy.isUsableNetworkResponse(null), false);
+});

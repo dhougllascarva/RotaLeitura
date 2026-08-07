@@ -17,9 +17,26 @@
     };
   }
 
+  function isConfigurationPath(pathname) {
+    return pathname.endsWith('/indexes.json')
+      || pathname.endsWith('/data-manifest.json');
+  }
+
+  function isAreaDataPath(pathname) {
+    return /^\/?(?:.*\/)?\d+_\d+\.json$/i.test(pathname);
+  }
+
+  function isUsableNetworkResponse(response) {
+    return Boolean(response)
+      && (response.ok || response.type === 'opaque');
+  }
+
   scope.RotaLeituraCachePolicy = {
     CACHE_PREFIX,
     cachesToDelete,
-    createTileWriteTracker
+    createTileWriteTracker,
+    isAreaDataPath,
+    isConfigurationPath,
+    isUsableNetworkResponse
   };
 })(globalThis);
