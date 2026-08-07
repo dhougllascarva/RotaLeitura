@@ -33,10 +33,6 @@ jobs:
     timeout-minutes: 30
     permissions:
       contents: read
-    env:
-      CSV_PATH: ${{ runner.temp }}/rotaleitura-input/dbcr17.csv
-      OUTPUT_DIR: ${{ runner.temp }}/rotaleitura-artifact/dados
-      REPORT_PATH: ${{ runner.temp }}/rotaleitura-artifact/conversion-report.json
 
     steps:
       - name: Baixar repositório
@@ -49,6 +45,13 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
+
+      - name: Preparar caminhos temporários
+        shell: bash
+        run: |
+          echo "CSV_PATH=$RUNNER_TEMP/rotaleitura-input/dbcr17.csv" >> "$GITHUB_ENV"
+          echo "OUTPUT_DIR=$RUNNER_TEMP/rotaleitura-artifact/dados" >> "$GITHUB_ENV"
+          echo "REPORT_PATH=$RUNNER_TEMP/rotaleitura-artifact/conversion-report.json" >> "$GITHUB_ENV"
 
       - name: Preparar diretórios temporários
         shell: bash
@@ -151,8 +154,8 @@ jobs:
         with:
           name: dados-validados-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
-            ${{ runner.temp }}/rotaleitura-artifact/dados
-            ${{ runner.temp }}/rotaleitura-artifact/conversion-report.json
+            ${{ env.OUTPUT_DIR }}
+            ${{ env.REPORT_PATH }}
           if-no-files-found: error
           retention-days: 1
 
@@ -165,9 +168,6 @@ jobs:
     permissions:
       contents: write
     env:
-      ARTIFACT_DIR: ${{ runner.temp }}/rotaleitura-artifact
-      GENERATED_DIR: ${{ runner.temp }}/rotaleitura-artifact/dados
-      REPORT_PATH: ${{ runner.temp }}/rotaleitura-artifact/conversion-report.json
       CONFIRMACAO: ${{ inputs.confirmacao }}
       CONFIRMACAO_REDUCAO: ${{ inputs.confirmacao_reducao }}
 
@@ -199,11 +199,18 @@ jobs:
         with:
           node-version: 20
 
+      - name: Preparar caminhos temporários
+        shell: bash
+        run: |
+          echo "ARTIFACT_DIR=$RUNNER_TEMP/rotaleitura-artifact" >> "$GITHUB_ENV"
+          echo "GENERATED_DIR=$RUNNER_TEMP/rotaleitura-artifact/dados" >> "$GITHUB_ENV"
+          echo "REPORT_PATH=$RUNNER_TEMP/rotaleitura-artifact/conversion-report.json" >> "$GITHUB_ENV"
+
       - name: Recuperar dados validados
         uses: actions/download-artifact@v4
         with:
           name: dados-validados-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/rotaleitura-artifact
+          path: ${{ env.ARTIFACT_DIR }}
 
       - name: Revalidar artefato e redução
         shell: bash
